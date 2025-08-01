@@ -68,6 +68,7 @@ import { PLANNING_CONFIG } from '@/lib/tools/planning/PlannerTool.config';
 import { Abortable, AbortError } from '@/lib/utils/Abortable';
 import { formatToolOutput } from '@/lib/tools/formatToolOutput';
 import { formatTodoList } from '@/lib/tools/utils/formatTodoList';
+import { GlowAnimationService } from '@/lib/services/GlowAnimationService';
 
 // Type Definitions
 interface Plan {
@@ -95,12 +96,27 @@ export class BrowserAgent {
   // Inner loop is -- execute TODOs, one after the other.
   private static readonly MAX_STEPS_INNER_LOOP  = 15; 
 
+  // Tools that trigger glow animation when executed
+  private static readonly GLOW_ENABLED_TOOLS = new Set([
+    'navigation_tool',
+    'find_element',
+    'interact',
+    'scroll_tool',
+    'search_tool',
+    'refresh_browser_state',
+    'tab_operations',
+    'screenshot_tool',
+    'extract_tool'
+  ]);
+
   private readonly executionContext: ExecutionContext;
   private readonly toolManager: ToolManager;
+  private readonly glowService: GlowAnimationService;
 
   constructor(executionContext: ExecutionContext) {
     this.executionContext = executionContext;
     this.toolManager = new ToolManager(executionContext);
+    this.glowService = GlowAnimationService.getInstance();
     this._registerTools();
   }
 
@@ -174,6 +190,17 @@ export class BrowserAgent {
       }
       
       throw error;
+    } finally {
+      // Ensure glow animation is stopped at the end of execution
+      try {
+        // Get all active glow tabs from the service
+        const activeGlows = await this.glowService.getAllActiveGlows();
+        for (const tabId of activeGlows) {
+          await this.glowService.stopGlow(tabId);
+        }
+      } catch (error) {
+        this.eventEmitter.debug(`Could not stop glow animation: ${error}`);
+      }
     }
   }
 
@@ -442,6 +469,7 @@ export class BrowserAgent {
   @Abortable  // Checks at method start
   private async _processToolCalls(toolCalls: any[]): Promise<boolean> {
     let wasDoneToolCalled = false;
+    
     for (const toolCall of toolCalls) {
       this.checkIfAborted();  // Manual check before each tool
 
@@ -452,6 +480,11 @@ export class BrowserAgent {
         // Handle tool not found
         continue;
       }
+
+      // Handle glow animation for applicable tools
+      // This enables glow only for certain interactive tools.
+      // we'll disable at the end of agent execution
+      await this._maybeStartGlowAnimation(toolName);
 
       this.eventEmitter.executingTool(toolName, args);
       const result = await tool.func(args);
@@ -490,6 +523,7 @@ export class BrowserAgent {
         wasDoneToolCalled = true;
       }
     }
+    
     return wasDoneToolCalled;
   }
 
@@ -622,6 +656,32 @@ export class BrowserAgent {
       await todoTool.func(args);
       
       // System reminder will be added by _processToolCalls special handling
+    }
+  }
+
+  /**
+   * Handle glow animation for tools that interact with the browser
+   * @param toolName - Name of the tool being executed
+   */
+  private async _maybeStartGlowAnimation(toolName: string): Promise<boolean> {
+    // Check if this tool should trigger glow animation
+    if (!BrowserAgent.GLOW_ENABLED_TOOLS.has(toolName)) {
+      return false;
+    }
+
+    try {
+      const currentPage = await this.executionContext.browserContext.getCurrentPage();
+      const tabId = currentPage.tabId;
+      
+      if (tabId && !this.glowService.isGlowActive(tabId)) {
+        await this.glowService.startGlow(tabId);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      // Log but don't fail if we can't manage glow
+      this.eventEmitter.debug(`Could not manage glow for tool ${toolName}: ${error}`);
+      return false;
     }
   }
 }
