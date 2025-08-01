@@ -81,6 +81,7 @@ interface PlanStep {
 
 interface ClassificationResult {
   is_simple_task: boolean;
+  is_followup_task: boolean;
 }
 
 export class BrowserAgent {
@@ -133,6 +134,14 @@ export class BrowserAgent {
 
       // 2. CLASSIFY: Determine the task type
       const classification = await this._classifyTask(task);
+      
+      // Clear message history if this is not a follow-up task
+      if (!classification.is_followup_task) {
+        this.messageManager.clear();
+        // Re-add system prompt and user task after clearing
+        this._initializeExecution(task);
+      }
+      
       const message = classification.is_simple_task 
         ? 'Executing the task...'
         : 'Creating a step-by-step plan to complete the task';
@@ -216,7 +225,7 @@ export class BrowserAgent {
     const classificationTool = this.toolManager.get('classification_tool');
     if (!classificationTool) {
       // Default to complex task if classification tool not found
-      return { is_simple_task: false };
+      return { is_simple_task: false, is_followup_task: false };
     }
 
     const args = { task };
@@ -230,7 +239,10 @@ export class BrowserAgent {
         const classification = JSON.parse(parsedResult.output);
         const classification_formatted_output = formatToolOutput('classification_tool', parsedResult);
         this.eventEmitter.toolEnd('classification_tool', true, classification_formatted_output);
-        return { is_simple_task: classification.is_simple_task };
+        return { 
+          is_simple_task: classification.is_simple_task,
+          is_followup_task: classification.is_followup_task 
+        };
       }
     } catch (error) {
       const errorResult = { ok: false, error: 'Classification failed' };
@@ -239,7 +251,7 @@ export class BrowserAgent {
     }
     
     // Default to complex task on any failure
-    return { is_simple_task: false };
+    return { is_simple_task: false, is_followup_task: false };
   }
 
   // ===================================================================
