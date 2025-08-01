@@ -142,9 +142,14 @@ export class BrowserAgent {
         this._initializeExecution(task);
       }
       
-      const message = classification.is_simple_task 
-        ? 'Executing the task...'
-        : 'Creating a step-by-step plan to complete the task';
+      let message: string;
+      if (classification.is_followup_task) {
+        message = 'Following up on the previous task...';
+      } else if (classification.is_simple_task) {
+        message = 'Executing the task...';
+      } else {
+        message = 'Creating a step-by-step plan to complete the task';
+      }
       this.eventEmitter.info(message);
 
       // 3. DELEGATE: Route to the correct execution strategy
