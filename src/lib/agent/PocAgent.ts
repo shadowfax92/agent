@@ -395,16 +395,18 @@ export class PocAgent {
       // tool call to be followed by toolMessage
       this.messageManager.addTool(result, toolCallId);
 
-      // Special handling for refresh_browser_state tool
-      // if (toolName === 'refresh_browser_state_tool' && parsedResult.ok) {
-      // }
-
       // Special handling for todo_manager tool
       if (toolName === 'todo_manager_tool' && parsedResult.ok && args.action !== 'list') {
         this.messageManager.addSystemReminder(
           `TODO list updated. Current state:\n${this.todoStore.getXml()}`
         );
         this.eventEmitter.info(formatTodoList(this.todoStore.getJson()));
+      }
+
+      // Special handling for refresh_browser_state tool, add the browser state to the message history
+      if (toolName === 'refresh_browser_state_tool' && parsedResult.ok) {
+        // Add browser state as a system reminder that LLM should not print
+        this.messageManager.addSystemReminder(parsedResult.output);
       }
 
       if (toolName === 'done_tool' && parsedResult.ok) {
