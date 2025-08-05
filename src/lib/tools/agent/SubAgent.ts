@@ -296,11 +296,11 @@ export class SubAgent {
       this.messageManager.addTool(result, toolCallId);
 
       // Special handling for specific tools
-      if (toolName === 'refresh_browser_state' && parsedResult.ok) {
+      if (toolName === 'refresh_browser_state_tool' && parsedResult.ok) {
         this.messageManager.addBrowserState(parsedResult.output);
       }
 
-      if (toolName === 'todo_manager' && parsedResult.ok && args.action !== 'list') {
+      if (toolName === 'todo_manager_tool' && parsedResult.ok && args.action !== 'list') {
         this.messageManager.addSystemReminder(
           `TODO list updated. Current state:\n${this.todoStore.getXml()}`
         );
