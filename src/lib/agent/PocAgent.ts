@@ -241,7 +241,7 @@ export class PocAgent {
 
     const systemPrompt = generateSystemPrompt(this.toolManager.getDescriptions());
     this.messageManager.addSystem(systemPrompt);
-    this.messageManager.addHuman(`Complete this task: "${task}"`);
+    this.messageManager.addHuman(`Complete this task: "<user-task>${task}</user-task>"`);
   }
 
   private async _maybeAddSystemReminders(stepCount: number): Promise<void> {
