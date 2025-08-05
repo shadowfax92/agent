@@ -130,15 +130,13 @@ export class SubAgent {
   private _initializeExecution(): void {
     // Generate system prompt using the prompt template
     const systemPrompt = generateSubAgentSystemPrompt(
-      this.task,
-      this.description,
       this.toolManager.getDescriptions()
     );
 
     this.messageManager.addSystem(systemPrompt);
     
     // Generate task prompt
-    const taskPrompt = generateSubAgentTaskPrompt(this.task);
+    const taskPrompt = generateSubAgentTaskPrompt(this.task, this.description);
     this.messageManager.addHuman(taskPrompt);
   }
 
@@ -177,20 +175,14 @@ export class SubAgent {
       stepCount++;
       
       // Get current TODOs and add as AI message
-      const todoXml = this.todoStore.getXml();
-      let instruction: string;
-      if (todoXml === '<todos></todos>') {
+      const todos = this.todoStore.getAll();
+      let instruction: string | undefined;
+      if (todos.length === 0) {
         // No TODOs - prompt to create a plan
         instruction = `Based on the task: "${this.task} and description: ${this.description}", create a plan using the planner_tool and add to your TODO list.`;
-      } else {
-        // Show TODOs and continue executing
-        this.messageManager.addAI(`Current TODO list:\n${todoXml}`);
-        instruction = `Continue executing the current TODOs.`;
-
+      }
         // Add few proabilistic system reminders
         this._maybeAddSystemReminders();
-      }
-      
       
       // Execute single turn
       const isDone = await this._executeSingleTurn(instruction);
@@ -211,11 +203,12 @@ export class SubAgent {
   }
 
   @Abortable
-  private async _executeSingleTurn(instruction: string): Promise<boolean> {
-    this.messageManager.addHuman(instruction);
+  private async _executeSingleTurn(instruction?: string): Promise<boolean> {
+    if (instruction && instruction.length > 0) {
+      this.messageManager.addHuman(instruction);
+    }
     
     const llmResponse = await this._invokeLLMWithStreaming();
-    
     let wasDoneToolCalled = false;
     if (llmResponse.tool_calls && llmResponse.tool_calls.length > 0) {
       this.messageManager.add(llmResponse);
