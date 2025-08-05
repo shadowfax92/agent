@@ -38,7 +38,5 @@ export function generateSubAgentTaskPrompt(task: string, description: string): s
 
 Here is some context:
 ${description}
-
-Execute the task. Start with planning the task using planner_tool.
 `
 }

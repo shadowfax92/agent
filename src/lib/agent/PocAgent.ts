@@ -128,7 +128,7 @@ export class PocAgent {
     this.toolManager.register(createResultTool(this.executionContext));
 
     // SubAgent tool for delegating complex tasks
-    // this.toolManager.register(createSubAgentTool(this.executionContext));
+    this.toolManager.register(createSubAgentTool(this.executionContext));
 
     // No need for classification tool in simplified version
   }
@@ -239,29 +239,29 @@ export class PocAgent {
     // Set the current task in execution context
     this.executionContext.setCurrentTask(task);
 
-    const systemPrompt = generateSystemPrompt(this.toolManager.getDescriptions());
+    const systemPrompt = generateSystemPrompt(this.toolManager.getDescriptions(), false);
     this.messageManager.addSystem(systemPrompt);
     this.messageManager.addHuman(`Complete this task: "<user-task>${task}</user-task>"`);
   }
 
   private async _maybeAddSystemReminders(stepCount: number): Promise<void> {
-    const suffixMessage = `\n\nThese are ONLY for your reference. NEVER echo them in your responses.`;
+    const suffixMessage = `\n\nCRITICAL: These are STRICTLY for your reference only and should NEVER be echoed back in your responses.`;
+    let reminderMessage = ``;
 
     if (stepCount % 5 === 0 && stepCount > 0) {
-      this.messageManager.addSystemReminder(
-        `REMINDER: Use validator_tool check the progress of the task and re-plan using planner_tool.${suffixMessage}`
-      );
+      reminderMessage += `REMINDER: Use validator_tool check the progress of the task and re-plan using planner_tool.`;
     }
-    if (this._getRandom(0.2)) {
-      this.messageManager.addSystemReminder(
-        `REMINDER: You can use screenshot_tool for visual reference of the page if you need more clarity.${suffixMessage}`
-      );
+    if (this._getRandom(0.1)) {
+      reminderMessage += `REMINDER: You can use screenshot_tool for visual reference of the page if you need more clarity.`;
     }
     
-    if (this._getRandom(0.3)) {
-      this.messageManager.addSystemReminder(
-        `REMINDER: Ensure you are updating your todo_manager_tool frequently to track your progress and updating them as you complete steps.${suffixMessage}`
-      );
+    if (this._getRandom(0.1)) {
+      reminderMessage += `REMINDER: Ensure you are updating your todo_manager_tool frequently to track your progress and updating them as you complete steps.`;
+    }
+
+    if (reminderMessage.length > 0) {
+      reminderMessage += suffixMessage;
+      this.messageManager.addSystem(reminderMessage);
     }
   }
 
