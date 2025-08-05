@@ -3,6 +3,7 @@ import { DynamicStructuredTool } from "@langchain/core/tools"
 import { ExecutionContext } from "@/lib/runtime/ExecutionContext"
 import { toolSuccess, toolError, type ToolOutput } from "@/lib/tools/Tool.interface"
 import { refreshStateToolDescription } from "./RefreshStateTool.prompt"
+import { MessageType } from "@/lib/runtime/MessageManager"
 
 // Input schema - no inputs needed
 export const RefreshStateInputSchema = z.object({})
@@ -25,6 +26,8 @@ export class RefreshStateTool {
         return toolError("No active page to refresh state from")
       }
 
+      // remove existing browser state messages
+      this.executionContext.messageManager.removeMessagesByType(MessageType.BROWSER_STATE)
       // Get fresh browser state
       const browserState = await browserContext.getBrowserStateString()
 

@@ -53,7 +53,7 @@ export function generatePlannerTaskPrompt(
   task: string,
   maxSteps: number,
   conversationHistory: string,
-  browserState: string
+  browserState: string,
 ): string {
   return `PLANNING REQUEST:
 - Generate upto ${maxSteps} next steps to accomplish the task. You can generate a plan for fewer steps as well, if the task can achieved in fewer steps.
