@@ -44,6 +44,7 @@
 import { ExecutionContext } from '@/lib/runtime/ExecutionContext';
 import { MessageManager } from '@/lib/runtime/MessageManager';
 import { ToolManager } from '@/lib/tools/ToolManager';
+import { ExecutionMetadata } from '@/lib/types/messaging';
 import { createPlannerTool } from '@/lib/tools/planning/PlannerTool';
 import { createTodoManagerTool } from '@/lib/tools/planning/TodoManagerTool';
 import { createRequirePlanningTool } from '@/lib/tools/planning/RequirePlanningTool';
@@ -186,13 +187,28 @@ export class BrowserAgent {
   /**
    * Main entry point.
    * Orchestrates classification and delegates to the appropriate execution strategy.
+   * @param task - The task/query to execute
+   * @param metadata - Optional execution metadata for controlling execution mode
    */
-  async execute(task: string): Promise<void> {
+  async execute(task: string, metadata?: ExecutionMetadata): Promise<void> {
     try {
       // 1. SETUP: Initialize system prompt and user task
       this._initializeExecution(task);
 
-      // 2. CLASSIFY: Determine the task type
+      // 2. CHECK FOR PREDEFINED PLAN
+      if (metadata?.executionMode === 'predefined' && metadata.predefinedPlan) {
+        // Use predefined plan from user-created agent
+        this.pubsub.publishMessage(PubSub.createMessage(`Executing agent: ${metadata.predefinedPlan.name || 'Custom Agent'}`, 'thinking'));
+        await this._executeWithPlan(task, metadata.predefinedPlan);
+        await this._generateTaskResult(task);
+        return;
+      }
+      else if (metadata?.executionMode === 'dynamic' && metadata?.source === 'newtab') {
+        // For tasks initiated from new tab, show the startup message with task
+        this.pubsub.publishMessage(PubSub.createMessage(`Executing task: ${task}`, 'thinking'));
+      }
+
+      // 3. STANDARD FLOW: CLASSIFY task type
       const classification = await this._classifyTask(task);
       
       // Clear message history if this is not a follow-up task
@@ -211,14 +227,14 @@ export class BrowserAgent {
       }
       this.pubsub.publishMessage(PubSub.createMessage(message, 'narration'));
 
-      // 3. DELEGATE: Route to the correct execution strategy
+      // 4. DELEGATE: Route to the correct execution strategy
       if (classification.is_simple_task) {
         await this._executeSimpleTaskStrategy(task);
       } else {
         await this._executeMultiStepStrategy(task);
       }
 
-      // 4. FINALISE: Generate final result
+      // 5. FINALISE: Generate final result
       await this._generateTaskResult(task);
     } catch (error) {
       this._handleExecutionError(error, task);
@@ -483,6 +499,82 @@ export class BrowserAgent {
     }
 
     throw new Error(`Task did not complete within ${BrowserAgent.MAX_STEPS_OUTER_LOOP} planning cycles.`);
+  }
+
+  // ===================================================================
+  //  Execution Strategy 3: Predefined Plan (User-Created Agents)
+  // ===================================================================
+  private async _executeWithPlan(task: string, predefinedPlan: { 
+    agentId: string;
+    steps: string[];
+    goal: string;
+    name?: string;
+  }): Promise<void> {
+    this.pubsub.publishMessage(PubSub.createMessage(`Executing predefined plan: ${predefinedPlan.name || predefinedPlan.agentId}`, 'thinking'));
+    
+    // Convert predefined steps to TODO format
+    const plan: Plan = {
+      steps: predefinedPlan.steps.map(step => ({
+        action: step,
+        reasoning: `Part of agent: ${predefinedPlan.name || 'Custom'}`
+      }))
+    };
+    
+    // Add goal context to message history
+    this.messageManager.addAI(`Help user with accomplishing this goal using the specified plan: ${predefinedPlan.goal}`);
+    
+    // Convert plan to TODOs
+    await this._updateTodosFromPlan(plan);
+    
+    // Show TODO list
+    const todoTool = this.toolManager.get('todo_manager_tool');
+    if (todoTool) {
+      const result = await todoTool.func({ action: 'get' });
+      const parsedResult = JSON.parse(result);
+      if (parsedResult.ok && parsedResult.output) {
+        this.pubsub.publishMessage(PubSub.createMessage(parsedResult.output, 'thinking'));
+      }
+    }
+    
+    // Execute TODOs
+    let stepCount = 0;
+    const maxSteps = BrowserAgent.MAX_STEPS_INNER_LOOP;
+    let currentTodos = '';
+    
+    // Get initial TODO state
+    if (todoTool) {
+      const result = await todoTool.func({ action: 'get' });
+      const parsedResult = JSON.parse(result);
+      currentTodos = parsedResult.output || '';
+    }
+    
+    while (stepCount < maxSteps && currentTodos.includes('- [ ]')) {
+      this.checkIfAborted();
+      
+      const instruction = generateSingleTurnExecutionPrompt(task);
+      const isTaskCompleted = await this._executeSingleTurn(instruction);
+      
+      stepCount++;
+      
+      if (isTaskCompleted.doneToolCalled) {
+        this.pubsub.publishMessage(PubSub.createMessage('Task completed via done_tool', 'thinking'));
+        return;
+      }
+      
+      // Update currentTodos for next iteration
+      if (todoTool) {
+        const result = await todoTool.func({ action: 'get' });
+        const parsedResult = JSON.parse(result);
+        currentTodos = parsedResult.output || '';
+      }
+    }
+    
+    // If we didn't complete via done_tool, check if all TODOs are done
+    if (!currentTodos.includes('- [ ]')) {
+      this.pubsub.publishMessage(PubSub.createMessage('All planned steps completed successfully', 'thinking'));
+    } else {
+      this.pubsub.publishMessage(PubSub.createMessage('Completed available steps within execution limits', 'thinking'));
+    }
   }
 
   // ===================================================================

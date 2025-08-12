@@ -424,18 +424,21 @@ function getStatusFromAction(action: string): 'thinking' | 'executing' | 'comple
  * @param id - Message ID for response tracking
  */
 async function handleExecuteQueryPort(
-  payload: { query: string; tabIds?: number[]; source?: string; chatMode?: boolean },
+  payload: { query: string; tabIds?: number[]; source?: string; chatMode?: boolean, metadata?: any },
   port: chrome.runtime.Port,
   id?: string
 ): Promise<void> {
   try {
-    // Enhanced debug logging
-    debugLog(`🎯 [Background] Received query execution from ${payload.source || 'unknown'}`)
+    // Enhanced debug logging with metadata info
+    const source = payload.metadata?.source || payload.source || 'unknown'
+    const executionMode = payload.metadata?.executionMode || 'dynamic'
+    debugLog(`🎯 [Background] Received query execution from ${source} (mode: ${executionMode})`)
     
     Logging.logMetric('query_initiated', {
       query: payload.query,
-      source: payload.source || 'unknown',
+      source: source,
       mode: payload.chatMode ? 'chat' : 'browse',
+      executionMode: executionMode,
     })
     
     // Initialize NxtScape if not already done
@@ -456,6 +459,7 @@ async function handleExecuteQueryPort(
       query: payload.query,
       mode: payload.chatMode ? 'chat' : 'browse',  // Convert boolean to explicit mode
       tabIds: payload.tabIds,
+      metadata: payload.metadata
     })
     
     // NxtScape execution completed - all messaging handled via PubSub

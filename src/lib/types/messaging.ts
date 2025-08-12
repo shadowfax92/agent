@@ -146,6 +146,22 @@ export const ConnectionStatusMessageSchema = MessageSchema.extend({
 export type ConnectionStatusMessage = z.infer<typeof ConnectionStatusMessageSchema>
 
 /**
+ * Execution metadata schema for query execution
+ */
+export const ExecutionMetadataSchema = z.object({
+  source: z.enum(['newtab', 'sidepanel', 'popup']).optional(),  // Source of the query
+  executionMode: z.enum(['dynamic', 'predefined']).default('dynamic'),  // How to execute
+  predefinedPlan: z.object({  // Plan details when using predefined mode
+    agentId: z.string(),
+    steps: z.array(z.string()),
+    goal: z.string(),
+    name: z.string().optional()
+  }).optional()
+})
+
+export type ExecutionMetadata = z.infer<typeof ExecutionMetadataSchema>
+
+/**
  * Execute query message schema
  */
 export const ExecuteQueryMessageSchema = MessageSchema.extend({
@@ -154,7 +170,8 @@ export const ExecuteQueryMessageSchema = MessageSchema.extend({
     query: z.string(),
     tabIds: z.array(z.number()).optional(),  // Selected tab IDs for context
     source: z.string().optional(),  // Source of the query (e.g., 'sidepanel')
-    chatMode: z.boolean().optional()  // Whether to use ChatAgent (Q&A mode) instead of BrowserAgent
+    chatMode: z.boolean().optional(),  // Whether to use ChatAgent (Q&A mode) instead of BrowserAgent
+    metadata: ExecutionMetadataSchema.optional()  // Execution metadata
   })
 })
 
