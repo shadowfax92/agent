@@ -8,7 +8,8 @@ export const AgentSchema = z.object({
   description: z.string().max(200),  // Brief description
   goal: z.string().min(10),  // Primary objective
   steps: z.array(z.string()).default([]),  // Execution steps
-  tools: z.array(z.string()).default([]),  // Tool identifiers
+  notes: z.array(z.string()).optional(),  // Additional notes and context
+  tools: z.array(z.string()).default([]),  // Tool identifiers (future)
   isPinned: z.boolean().default(false),  // Show on new tab
   lastUsed: z.number().int().nullable(),  // Last execution timestamp
   createdAt: z.number().int(),  // Creation timestamp
