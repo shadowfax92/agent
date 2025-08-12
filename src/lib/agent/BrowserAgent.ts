@@ -44,6 +44,7 @@
 import { ExecutionContext } from '@/lib/runtime/ExecutionContext';
 import { MessageManager } from '@/lib/runtime/MessageManager';
 import { ToolManager } from '@/lib/tools/ToolManager';
+import { ExecutionMetadata } from '@/lib/types/messaging';
 import { createPlannerTool } from '@/lib/tools/planning/PlannerTool';
 import { createTodoManagerTool } from '@/lib/tools/planning/TodoManagerTool';
 import { createDoneTool } from '@/lib/tools/utils/DoneTool';
@@ -140,13 +141,28 @@ export class BrowserAgent {
   /**
    * Main entry point.
    * Orchestrates classification and delegates to the appropriate execution strategy.
+   * @param task - The task/query to execute
+   * @param metadata - Optional execution metadata for controlling execution mode
    */
-  async execute(task: string): Promise<void> {
+  async execute(task: string, metadata?: ExecutionMetadata): Promise<void> {
     try {
       // 1. SETUP: Initialize system prompt and user task
       this._initializeExecution(task);
 
-      // 2. CLASSIFY: Determine the task type
+      // 2. CHECK FOR PREDEFINED PLAN
+      if (metadata?.executionMode === 'predefined' && metadata.predefinedPlan) {
+        // Use predefined plan from user-created agent
+        this.eventEmitter.info(`Executing agent: ${metadata.predefinedPlan.name || 'Custom Agent'}`, 'startup');
+        await this._executeWithPlan(task, metadata.predefinedPlan);
+        await this._generateTaskResult(task);
+        return;
+      }
+      else if (metadata?.executionMode === 'dynamic' && metadata?.source === 'newtab') {
+        // For tasks initiated from new tab, show the startup message with task
+        this.eventEmitter.info(`Executing task: ${task}`, 'startup');
+      }
+
+      // 3. STANDARD FLOW: CLASSIFY task type
       const classification = await this._classifyTask(task);
       
       // Clear message history if this is not a follow-up task
@@ -167,14 +183,14 @@ export class BrowserAgent {
       // Tag startup status messages for UI styling
       this.eventEmitter.info(message, 'startup');
 
-      // 3. DELEGATE: Route to the correct execution strategy
+      // 4. DELEGATE: Route to the correct execution strategy
       if (classification.is_simple_task) {
         await this._executeSimpleTaskStrategy(task);
       } else {
         await this._executeMultiStepStrategy(task);
       }
 
-      // 4. FINALISE: Generate final result
+      // 5. FINALISE: Generate final result
       await this._generateTaskResult(task);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -363,6 +379,61 @@ export class BrowserAgent {
     }
 
     throw new Error(`Task did not complete within ${BrowserAgent.MAX_STEPS_OUTER_LOOP} planning cycles.`);
+  }
+
+  // ===================================================================
+  //  Execution Strategy 3: Predefined Plan (User-Created Agents)
+  // ===================================================================
+  private async _executeWithPlan(task: string, predefinedPlan: { 
+    agentId: string;
+    steps: string[];
+    goal: string;
+    name?: string;
+  }): Promise<void> {
+    this.eventEmitter.debug(`Executing predefined plan: ${predefinedPlan.name || predefinedPlan.agentId}`);
+    
+    // Convert predefined steps to TODO format
+    const plan: Plan = {
+      steps: predefinedPlan.steps.map(step => ({
+        action: step,
+        reasoning: `Part of agent: ${predefinedPlan.name || 'Custom'}`
+      }))
+    };
+    
+    // Add goal context to message history
+    this.messageManager.addAI(`Help user with accomplishing this goal using the specified plan: ${predefinedPlan.goal}`);
+    
+    // Convert plan to TODOs
+    await this._updateTodosFromPlan(plan);
+    
+    // Show TODO list
+    const todoStore = this.executionContext.todoStore;
+    this.eventEmitter.info(formatTodoList(todoStore.getJson()));
+    
+    // Execute TODOs
+    let stepCount = 0;
+    const maxSteps = BrowserAgent.MAX_STEPS_INNER_LOOP;
+    
+    while (stepCount < maxSteps && !todoStore.isAllDoneOrSkipped()) {
+      this.checkIfAborted();
+      
+      const instruction = generateSingleTurnExecutionPrompt(task);
+      const isTaskCompleted = await this._executeSingleTurn(instruction);
+      
+      stepCount++;
+      
+      if (isTaskCompleted) {
+        this.eventEmitter.debug('Task completed via done_tool');
+        return;
+      }
+    }
+    
+    // If we didn't complete via done_tool, check if all TODOs are done
+    if (todoStore.isAllDoneOrSkipped()) {
+      this.eventEmitter.info('All planned steps completed successfully');
+    } else {
+      this.eventEmitter.info('Completed available steps within execution limits');
+    }
   }
 
   // ===================================================================

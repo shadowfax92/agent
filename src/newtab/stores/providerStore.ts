@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import { z } from 'zod'
 import { MessageType } from '@/lib/types/messaging'
 import { PortName } from '@/lib/runtime/PortMessaging'
+import { Agent } from '../stores/agentsStore'
 
 // Provider schema
 export const ProviderSchema = z.object({
@@ -94,6 +95,7 @@ interface ProviderActions {
   removeCustomProvider: (id: string) => void
   getAllProviders: () => Provider[]
   executeProviderAction: (provider: Provider, query: string) => Promise<void>
+  executeAgent: (agent: Agent, query: string) => Promise<void>
 }
 
 export const useProviderStore = create<ProviderState & ProviderActions>()(
@@ -189,7 +191,10 @@ export const useProviderStore = create<ProviderState & ProviderActions>()(
               payload: {
                 query: query,
                 tabIds: [activeTab.id],
-                source: 'newtab'
+                metadata: {
+                  source: 'newtab',
+                  executionMode: 'dynamic'
+                }
               }
             })
             
@@ -200,6 +205,51 @@ export const useProviderStore = create<ProviderState & ProviderActions>()(
           }
         } else {
           console.warn(`No action defined for provider: ${provider.id}`)
+        }
+      },
+      
+      executeAgent: async (agent, query) => {
+        try {
+          // Get current tab
+          const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true })
+          
+          if (!activeTab?.id) {
+            console.error('No active tab found')
+            return
+          }
+          
+          // Open the sidepanel for the current tab
+          await chrome.sidePanel.open({ tabId: activeTab.id })
+          
+          // Wait a bit for sidepanel to initialize
+          await new Promise(resolve => setTimeout(resolve, 500))
+          
+          // Connect to background script and send query with agent metadata
+          const port = chrome.runtime.connect({ name: PortName.NEWTAB_TO_BACKGROUND })
+          
+          // Send the query through port messaging with predefined plan
+          port.postMessage({
+            type: MessageType.EXECUTE_QUERY,
+            payload: {
+              query: query,
+              tabIds: [activeTab.id],
+              metadata: {
+                source: 'newtab',
+                executionMode: 'predefined',
+                predefinedPlan: {
+                  agentId: agent.id,
+                  steps: agent.steps,
+                  goal: agent.goal,
+                  name: agent.name
+                }
+              }
+            }
+          })
+          
+          // Close port after sending message
+          setTimeout(() => port.disconnect(), 100)
+        } catch (error) {
+          console.error('Failed to execute agent:', error)
         }
       }
     }),

@@ -9,6 +9,7 @@ import { BrowserAgent } from "@/lib/agent/BrowserAgent";
 import { PocAgent } from "@/lib/agent/PocAgent";
 import { isPocMode } from "@/config";
 import { langChainProvider } from "@/lib/llm/LangChainProvider";
+import { ExecutionMetadata } from "@/lib/types/messaging";
 
 /**
  * Configuration schema for NxtScape agent
@@ -31,6 +32,7 @@ export const RunOptionsSchema = z.object({
   tabIds: z.array(z.number()).optional(), // Optional array of tab IDs for context (e.g., which tabs to summarize) - NOT for agent operation
   eventBus: z.instanceof(EventBus), // EventBus for streaming updates
   eventProcessor: z.instanceof(EventProcessor), // EventProcessor for high-level event handling
+  metadata: z.any().optional(), // Execution metadata for controlling execution mode
 });
 
 export type RunOptions = z.infer<typeof RunOptionsSchema>;
@@ -163,7 +165,7 @@ export class NxtScape {
     }
 
     const parsedOptions = RunOptionsSchema.parse(options);
-    const { query, tabIds, eventBus, eventProcessor } = parsedOptions;
+    const { query, tabIds, eventBus, eventProcessor, metadata } = parsedOptions;
 
     const runStartTime = Date.now();
 
@@ -219,8 +221,8 @@ export class NxtScape {
         throw new Error("BrowserAgent not initialized");
       }
 
-      // Execute the browser agent with the task
-      await this.browserAgent.execute(query);
+      // Execute the browser agent with the task and metadata
+      await this.browserAgent.execute(query, metadata as ExecutionMetadata | undefined);
       
       // BrowserAgent handles all logging and result management internally
       Logging.log("NxtScape", "Agent execution completed");

@@ -476,19 +476,22 @@ function createStreamingComponents(): { eventBus: EventBus; eventProcessor: Even
  * @param id - Message ID for response tracking
  */
 async function handleExecuteQueryPort(
-  payload: { query: string; tabIds?: number[]; source?: string },
+  payload: { query: string; tabIds?: number[]; source?: string; metadata?: any },
   port: chrome.runtime.Port,
   id?: string
 ): Promise<void> {
   let cleanup: (() => void) | undefined;
   
   try {
-    // Enhanced debug logging
-    debugLog(`🎯 [Background] Received query execution from ${payload.source || 'unknown'}`)
+    // Enhanced debug logging with metadata info
+    const source = payload.metadata?.source || payload.source || 'unknown'
+    const executionMode = payload.metadata?.executionMode || 'dynamic'
+    debugLog(`🎯 [Background] Received query execution from ${source} (mode: ${executionMode})`)
     
     captureEvent('query_initiated', {
       query: payload.query,
-      source: payload.source || 'unknown',
+      source: source,
+      executionMode: executionMode,
     })
     
     // Initialize NxtScape if not already done
@@ -499,14 +502,15 @@ async function handleExecuteQueryPort(
     const { eventBus, eventProcessor, cleanup: cleanupFn } = createStreamingComponents()
     cleanup = cleanupFn
     
-    // Execute the query using NxtScape with EventBus and EventProcessor
+    // Execute the query using NxtScape with EventBus, EventProcessor, and metadata
     // Starting NxtScape execution
     
     const result = await nxtScape.run({
       query: payload.query,
       tabIds: payload.tabIds,
       eventBus: eventBus,
-      eventProcessor: eventProcessor
+      eventProcessor: eventProcessor,
+      metadata: payload.metadata
     })
     
     // NxtScape execution completed
