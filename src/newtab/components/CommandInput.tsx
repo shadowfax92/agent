@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { ProviderDropdown } from './ProviderDropdown'
 import { useProviderStore } from '../stores/providerStore'
-import { executeProviderAction } from '../utils/providerActions'
 
 export function CommandInput() {
   const [value, setValue] = useState('')
@@ -9,7 +8,7 @@ export function CommandInput() {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   
-  const { getSelectedProvider } = useProviderStore()
+  const { getSelectedProvider, executeProviderAction } = useProviderStore()
   
   const selectedProvider = getSelectedProvider()
   
