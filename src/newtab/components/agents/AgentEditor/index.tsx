@@ -1,0 +1,127 @@
+import React, { useEffect, useState } from 'react'
+import { z } from 'zod'
+import { AgentEditorForm } from './AgentEditorForm'
+import { type Agent, CreateAgentSchema } from '@/newtab/schemas/agent.schema'
+import { type Template } from '@/newtab/schemas/template.schema'
+import { useAgentEditor } from '@/newtab/hooks/agents/useAgentEditor'
+import { useAutoSave } from '@/newtab/hooks/agents/useAutoSave'
+import { useKeyboardShortcuts } from '@/newtab/hooks/agents/useKeyboardShortcuts'
+
+interface AgentEditorProps {
+  agentId: string | null
+  agent?: Agent | null
+  template?: Template | null
+  onSave: (data: any) => void
+  onRun: () => Promise<void>
+}
+
+const DEFAULT_DESCRIPTION = ''
+
+export function AgentEditor ({ agentId, agent, template, onSave, onRun }: AgentEditorProps) {
+  const editor = useAgentEditor()
+  const [notification, setNotification] = useState<string>('')
+  
+  // Load agent or template when provided
+  useEffect(() => {
+    if (agent) {
+      editor.loadAgent(agent)
+      setNotification('')
+    } else if (template) {
+      editor.loadTemplate(template)
+      setNotification('Save to enable Run')
+    } else if (!agentId) {
+      setNotification('Save to enable Run')
+    }
+  }, [agent, template, agentId])
+
+  // Auto-save functionality
+  const { clearDraft, loadDraft } = useAutoSave({
+    data: {
+      name: editor.name,
+      description: editor.description,
+      goal: editor.goal,
+      steps: editor.steps,
+      notes: editor.notes
+    },
+    enabled: !agentId,  // Only auto-save for new agents
+    debounceMs: 600
+  })
+
+  // Load draft on mount for new agents
+  useEffect(() => {
+    if (!agentId && !agent && !template) {
+      const draft = loadDraft()
+      if (draft) {
+        editor.setName(draft.name)
+        editor.setDescription(draft.description)
+        editor.setGoal(draft.goal)
+        editor.setSteps(draft.steps.length > 0 ? draft.steps : [''])
+        editor.setNotes(draft.notes.length > 0 ? draft.notes : [''])
+      }
+    }
+  }, [])
+
+  // Handle save
+  const handleSave = (): void => {
+    editor.setErrors({})
+    const filteredSteps = editor.steps.filter(s => s.trim().length > 0)
+    const filteredNotes = editor.notes.filter(n => n.trim().length > 0)
+    
+    try {
+      const payload = CreateAgentSchema.parse({
+        name: editor.name,
+        description: editor.description,
+        goal: editor.goal,
+        steps: filteredSteps,
+        notes: filteredNotes
+      })
+      
+      onSave({
+        ...payload,
+        description: payload.description ?? DEFAULT_DESCRIPTION,
+        notes: filteredNotes
+      })
+      
+      // Clear draft after successful save
+      clearDraft()
+      
+      // Show saved notification
+      setNotification('Saved')
+      setTimeout(() => setNotification(''), 2500)
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        const fieldErrors: Record<string, string> = {}
+        err.errors.forEach(issue => {
+          const key = String(issue.path[0])
+          fieldErrors[key] = issue.message
+        })
+        editor.setErrors(fieldErrors)
+      }
+    }
+  }
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    onSave: handleSave,
+    onRun: agentId ? onRun : undefined
+  })
+
+  return (
+    <>
+      <button data-save-trigger style={{ display: 'none' }} onClick={handleSave} />
+      <AgentEditorForm
+        name={editor.name}
+        description={editor.description}
+        goal={editor.goal}
+        steps={editor.steps}
+        notes={editor.notes}
+        errors={editor.errors}
+        onNameChange={editor.setName}
+        onDescriptionChange={editor.setDescription}
+        onGoalChange={editor.setGoal}
+        onStepsChange={editor.setSteps}
+        onNotesChange={editor.setNotes}
+      />
+    </>
+  )
+}
