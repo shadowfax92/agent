@@ -1,26 +1,17 @@
 import { create } from 'zustand'
 import { z } from 'zod'
 
-// Message schema - keep it simple
+// Message schema - simplified for direct PubSub mapping
 export const MessageSchema = z.object({
-  id: z.string(),  // Unique message ID
-  role: z.enum(['user', 'thinking', 'assistant', 'error']),  // Message sender role
+  msgId: z.string(),  // Primary ID for both React keys and PubSub correlation
+  role: z.enum(['user', 'thinking', 'assistant', 'error']),  // Direct from PubSub
   content: z.string(),  // Message content
   timestamp: z.date(),  // When message was created
   metadata: z.object({
     toolName: z.string().optional(),  // Tool name if this is a tool result
-    error: z.boolean().optional(),  // Flag for error messages
-    result: z.boolean().optional(), // Flag for result messages
     isExecuting: z.boolean().optional(),  // Flag for executing messages
     isCompleting: z.boolean().optional(),  // Flag for messages that are finishing execution
-    isStartup: z.boolean().optional(),  // Flag for initial startup status lines
-    kind: z.enum(['stream', 'execution', 'tool-result', 'system', 'error', 'cancel', 'task-result']).optional(),  // Normalized message kind
-    streamId: z.string().optional(),  // Streaming correlation id
-    category: z.string().optional(),  // Optional category from system messages
-    success: z.boolean().optional(),  // Success flag for tool/task results
-    msgId: z.string().optional(),  // Message ID for pub-sub system
-    timestamp: z.number().optional()  // Timestamp from pub-sub system
-  }).optional()  // Optional metadata
+  }).optional()  // Minimal metadata
 })
 
 export type Message = z.infer<typeof MessageSchema>
@@ -36,17 +27,24 @@ const ChatStateSchema = z.object({
 
 type ChatState = z.infer<typeof ChatStateSchema>
 
+// PubSub message type for upsert
+export interface PubSubMessage {
+  msgId: string
+  content: string
+  role: 'thinking' | 'user' | 'assistant' | 'error'
+  ts: number
+}
+
 // Store actions
 interface ChatActions {
-  // Message operations
-  addMessage: (message: Omit<Message, 'id' | 'timestamp'>) => void
-  updateMessage: (id: string, content: string) => void
+  // Message operations - now with upsert
+  upsertMessage: (pubsubMessage: PubSubMessage) => void
   clearMessages: () => void
   
   // Executing message operations
-  markMessageAsExecuting: (id: string) => void
-  markMessageAsCompleting: (id: string) => void
-  removeExecutingMessage: (id: string) => void
+  markMessageAsExecuting: (msgId: string) => void
+  markMessageAsCompleting: (msgId: string) => void
+  removeExecutingMessage: (msgId: string) => void
   setExecutingMessageRemoving: (removing: boolean) => void
   
   // Processing state
@@ -78,34 +76,43 @@ export const useChatStore = create<ChatState & ChatActions>((set) => ({
   ...initialState,
   
   // Actions
-  addMessage: (message) => {
-    const newMessage: Message = {
-      ...message,
-      id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-      timestamp: new Date()
-    }
-    
-    set((state) => ({
-      messages: [...state.messages, newMessage],
-      error: null  // Clear error when new message is added
-    }))
-  },
-  
-  updateMessage: (id, content) => {
-    set((state) => ({
-      messages: state.messages.map(msg =>
-        msg.id === id ? { ...msg, content } : msg
-      )
-    }))
+  upsertMessage: (pubsubMessage) => {
+    set((state) => {
+      const existingIndex = state.messages.findIndex(m => m.msgId === pubsubMessage.msgId)
+      
+      if (existingIndex >= 0) {
+        // Update existing message content
+        const updated = [...state.messages]
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          content: pubsubMessage.content,
+          timestamp: new Date(pubsubMessage.ts)
+        }
+        return { messages: updated, error: null }
+      } else {
+        // Add new message
+        const newMessage: Message = {
+          msgId: pubsubMessage.msgId,
+          content: pubsubMessage.content,
+          role: pubsubMessage.role,
+          timestamp: new Date(pubsubMessage.ts),
+          metadata: {}
+        }
+        return { 
+          messages: [...state.messages, newMessage],
+          error: null
+        }
+      }
+    })
   },
   
   clearMessages: () => set({ messages: [] }),
   
-  // Executing message operations
-  markMessageAsExecuting: (id) => {
+  // Executing message operations (now use msgId)
+  markMessageAsExecuting: (msgId) => {
     set((state) => ({
       messages: state.messages.map(msg =>
-        msg.id === id ? { 
+        msg.msgId === msgId ? { 
           ...msg, 
           metadata: { 
             ...msg.metadata, 
@@ -117,10 +124,10 @@ export const useChatStore = create<ChatState & ChatActions>((set) => ({
     }))
   },
   
-  markMessageAsCompleting: (id) => {
+  markMessageAsCompleting: (msgId) => {
     set((state) => ({
       messages: state.messages.map(msg =>
-        msg.id === id ? { 
+        msg.msgId === msgId ? { 
           ...msg, 
           metadata: { 
             ...msg.metadata, 
@@ -132,9 +139,9 @@ export const useChatStore = create<ChatState & ChatActions>((set) => ({
     }))
   },
   
-  removeExecutingMessage: (id) => {
+  removeExecutingMessage: (msgId) => {
     set((state) => ({
-      messages: state.messages.filter(msg => msg.id !== id)
+      messages: state.messages.filter(msg => msg.msgId !== msgId)
     }))
   },
   
@@ -159,8 +166,8 @@ export const chatSelectors = {
   hasMessages: (state: ChatState): boolean => 
     state.messages.length > 0,
     
-  getMessageById: (state: ChatState, id: string): Message | undefined =>
-    state.messages.find(msg => msg.id === id),
+  getMessageByMsgId: (state: ChatState, msgId: string): Message | undefined =>
+    state.messages.find(msg => msg.msgId === msgId),
     
   getSelectedTabCount: (state: ChatState): number => 
     state.selectedTabIds.length

@@ -92,7 +92,7 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
 
   // Track new messages for animation
   useEffect(() => {
-    const currentMessageIds = new Set(messages.map(msg => msg.id))
+    const currentMessageIds = new Set(messages.map(msg => msg.msgId))
     const previousIds = previousMessageIdsRef.current
     
     // Find new messages (in current but not in previous)
@@ -110,7 +110,7 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
   // Memoize filtered and processed messages to avoid recalculation on every render
   const processedMessages = useMemo(() => {
     const todoTableMessages = messages.filter(msg => msg.content.includes('| # | Status | Task |'))
-    const todoTableIds = new Set(todoTableMessages.map(msg => msg.id))
+    const todoTableIds = new Set(todoTableMessages.map(msg => msg.msgId))
 
     const findPrevIndex = (pred: (m: Message) => boolean, start: number): number => {
       for (let i = start; i >= 0; i--) if (pred(messages[i])) return i
@@ -130,13 +130,13 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
     }>()
 
     messages.forEach((message, index) => {
-      const isTodoTable = todoTableIds.has(message.id)
-      const todoIndex = isTodoTable ? todoTableMessages.findIndex(msg => msg.id === message.id) : -1
+      const isTodoTable = todoTableIds.has(message.msgId)
+      const todoIndex = isTodoTable ? todoTableMessages.findIndex(msg => msg.msgId === message.msgId) : -1
       const isExecuting = message.metadata?.isExecuting === true
 
-      const prevTodoIndex = findPrevIndex(m => todoTableIds.has(m.id), index - 1)
+      const prevTodoIndex = findPrevIndex(m => todoTableIds.has(m.msgId), index - 1)
       const nextTodoIndex = (() => {
-        for (let i = index + 1; i < messages.length; i++) if (todoTableIds.has(messages[i].id)) return i
+        for (let i = index + 1; i < messages.length; i++) if (todoTableIds.has(messages[i].msgId)) return i
         return -1
       })()
       const prevUserIndex = findPrevIndex(m => m.role === 'user', index - 1)
@@ -156,7 +156,7 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
         }
       }
 
-      messagePositions.set(message.id, {
+      messagePositions.set(message.msgId, {
         isTodoTable,
         todoIndex,
         isFirst: isTodoTable && todoIndex === 0,
@@ -176,9 +176,9 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
         return true
       })
       .map((message, index) => {
-        const position = messagePositions.get(message.id)!
+        const position = messagePositions.get(message.msgId)!
         if (position.isTodoTable && !position.isFirst && !position.isLast) return null
-        const isNewMessage = newMessageIdsRef.current.has(message.id)
+        const isNewMessage = newMessageIdsRef.current.has(message.msgId)
         const animationDelay = isNewMessage ? index * 0.1 : 0
         return { message, position: position!, animationDelay, isNewMessage }
       })
@@ -384,7 +384,7 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
 
             processedMessages.forEach(({ message, position, animationDelay, isNewMessage }) => {
               const commonAttrs = {
-                key: message.id,
+                key: message.msgId,
                 className: isNewMessage ? 'animate-fade-in' : '',
                 style: { animationDelay: isNewMessage ? `${animationDelay}s` : undefined },
                 'data-todo-position': position.isFirst ? 'first' : position.isLast ? 'last' : null,
