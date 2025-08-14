@@ -281,6 +281,14 @@ export class BrowserAgent {
     for (let attempt = 1; attempt <= BrowserAgent.MAX_STEPS_FOR_SIMPLE_TASKS; attempt++) {
       this.checkIfAborted();  // Manual check in loop
 
+      // Check for loop before continuing
+      if (this._detectLoop()) {
+        const loopMessage = 'Detected repetitive behavior. Breaking out of potential infinite loop.';
+        console.warn(loopMessage);
+        this.pubsub.publishMessage(PubSub.createMessage(loopMessage, 'error'));
+        return;
+      }
+
       // Debug: Attempt ${attempt}/${BrowserAgent.MAX_STEPS_FOR_SIMPLE_TASKS}
 
       const instruction = `The user's goal is: "${task}". Please take the next best action to complete this goal and call the 'done_tool' when finished.`;
@@ -323,6 +331,15 @@ export class BrowserAgent {
       
       while (inner_loop_index < BrowserAgent.MAX_STEPS_INNER_LOOP && !todoStore.isAllDoneOrSkipped()) {
         this.checkIfAborted();
+        
+        // Check for loop before continuing
+        if (this._detectLoop()) {
+          const loopMessage = 'Detected repetitive behavior. Breaking out of potential infinite loop.';
+          console.warn(loopMessage);
+          
+          // break out of loop
+          throw new Error("Agent unable to proceed further");
+        }
         
         // Use the generateTodoExecutionPrompt for TODO execution
         const instruction = generateSingleTurnExecutionPrompt(task);
@@ -634,6 +651,48 @@ export class BrowserAgent {
       const errorMessage = this._categorizeError(error);
       this.pubsub.publishMessage(PubSub.createMessage(errorMessage, 'error'));
     }
+  }
+
+  /**
+   * Detect if the agent is stuck in a loop by checking for repeated messages
+   * @param lookback - Number of recent messages to check (default: 6)
+   * @param threshold - Number of times a message must appear to be considered a loop (default: 2)
+   * @returns true if a loop is detected
+   */
+  private _detectLoop(lookback: number = 6, threshold: number = 2): boolean {
+    const messages = this.messageManager.getMessages();
+    
+    // Need at least lookback messages to check
+    if (messages.length < lookback) {
+      return false;
+    }
+    
+    // Get the last N messages, filtering only AI/assistant messages
+    const recentMessages = messages
+      .slice(-lookback)
+      .filter(msg => msg._getType() === 'ai')
+      .map(msg => {
+        // Normalize the content for comparison
+        const content = typeof msg.content === 'string' ? msg.content : '';
+        return content.trim().toLowerCase();
+      });
+    
+    // Count occurrences of each message
+    const messageCount = new Map<string, number>();
+    for (const msg of recentMessages) {
+      if (msg) {  // Skip empty messages
+        const count = messageCount.get(msg) || 0;
+        messageCount.set(msg, count + 1);
+        
+        // If any message appears threshold times or more, we have a loop
+        if (count + 1 >= threshold) {
+          console.warn(`Loop detected: Message "${msg.substring(0, 50)}..." repeated ${count + 1} times`);
+          return true;
+        }
+      }
+    }
+    
+    return false;
   }
 
   /**
