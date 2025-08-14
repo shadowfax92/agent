@@ -326,7 +326,6 @@ const ToolResultInline = ({ name, content, autoCollapseAfterMs }: ToolResultInli
  */
 export const MessageItem = memo<MessageItemProps>(function MessageItem({ message, shouldIndent = false, showLocalIndentLine = false, applyIndentMargin = true }: MessageItemProps) {
   const { autoCollapseTools } = useSettingsStore()
-  const { markMessageAsCompleting, removeExecutingMessage, messages, executingMessageRemoving } = useChatStore()
   
   // Simple role checks
   const isUser = message.role === 'user'
@@ -336,10 +335,6 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
   
   // Special cases we still need to detect
   const isTodoTable = message.content.includes('| # | Status | Task |')
-  const isExecuting = message.metadata?.isExecuting === true
-  const isCompleting = message.metadata?.isCompleting || (isExecuting && executingMessageRemoving)
-  const [isAnimating, setIsAnimating] = useState(false)
-  const [slideUpAmount, setSlideUpAmount] = useState(0)
 
   // Simplified message styling based on role
   const messageStyling = useMemo(() => {
@@ -367,47 +362,6 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
 
   // Simplified: determine if we should show a bubble
   const shouldShowBubble = isUser || isTodoTable
-  
-  // Extract the executing text (remove "executing - " prefix)
-  const executingText = isExecuting ? message.content.replace(/^executing\s*-\s*/i, '') : ''
-
-  // Calculate slide-up amount when executing message is being removed
-  useEffect(() => {
-    if (executingMessageRemoving && !isExecuting) {
-      // Find the executing message that's being removed
-      const executingMessage = messages.find(msg => msg.metadata?.isCompleting)
-      if (executingMessage) {
-        // Find the executing message element and get its height
-        const executingElement = document.querySelector(`[data-message-id="${executingMessage.msgId}"]`)
-        if (executingElement) {
-          const height = executingElement.getBoundingClientRect().height
-          setSlideUpAmount(height)
-        }
-      }
-    } else {
-      setSlideUpAmount(0)
-    }
-  }, [executingMessageRemoving, isExecuting, messages])
-  
-  // Handle executing message completion (now uses msgId)
-  useEffect(() => {
-    if (isExecuting && !isCompleting && !isAnimating) {
-      // Check if there's a newer message after this executing message
-      const currentIndex = messages.findIndex(msg => msg.msgId === message.msgId)
-      const hasNewerMessages = currentIndex !== -1 && currentIndex < messages.length - 1
-      
-      if (hasNewerMessages) {
-        // There's a newer message, so this executing message should complete
-        markMessageAsCompleting(message.msgId)
-        setIsAnimating(true)
-        
-        // Remove the message after animation completes
-        setTimeout(() => {
-          removeExecutingMessage(message.msgId)
-        }, 400) // Match the CSS animation duration
-      }
-    }
-  }, [isExecuting, isCompleting, isAnimating, message.msgId, messages, markMessageAsCompleting, removeExecutingMessage])
   
   // Simplified role-based content rendering
   const renderContent = useCallback(() => {
@@ -507,10 +461,6 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
         // Add special styling for TODO table messages
         isTodoTable && 'relative'
       )}
-      style={!isExecuting && executingMessageRemoving && slideUpAmount > 0 ? {
-        transform: `translateY(-${slideUpAmount}px)`,
-        transition: 'transform 0.4s ease-out'
-      } : undefined}
     >
       
       {/* Vertical connecting line for indented messages (used only when not grouped) */}
@@ -563,22 +513,14 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
         <div className={cn(
           'mr-4 max-w-[85%]',
           'mt-1',
-          isCompleting && 'animate-dash-off-left',
           // Add subtle styling for indented messages
           shouldIndent && 'opacity-90',
           // Error messages get special styling
           isError && 'text-red-500'
         )}>
-          {isExecuting ? (
-            <div className="flex items-center gap-3 text-sm font-medium text-muted-foreground">
-              <DogHeadSpinner size={24} className="text-brand" />
-              <span>{executingText}</span>
-            </div>
-          ) : (
-            <div className="text-sm">
-              {renderContent()}
-            </div>
-          )}
+          <div className="text-sm">
+            {renderContent()}
+          </div>
         </div>
       )}
     </div>

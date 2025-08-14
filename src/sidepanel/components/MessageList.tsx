@@ -112,58 +112,27 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
     const todoTableMessages = messages.filter(msg => msg.content.includes('| # | Status | Task |'))
     const todoTableIds = new Set(todoTableMessages.map(msg => msg.msgId))
 
-    const findPrevIndex = (pred: (m: Message) => boolean, start: number): number => {
-      for (let i = start; i >= 0; i--) if (pred(messages[i])) return i
-      return -1
-    }
-
     // Create a map of message positions for efficient lookup
     const messagePositions = new Map<string, {
       isTodoTable: boolean
       todoIndex: number
       isFirst: boolean
       isLast: boolean
-      hasPreviousTodo: boolean
-      hasNextTodo: boolean
-      isBetweenTodos: boolean
       shouldIndent: boolean
     }>()
 
     messages.forEach((message, index) => {
       const isTodoTable = todoTableIds.has(message.msgId)
       const todoIndex = isTodoTable ? todoTableMessages.findIndex(msg => msg.msgId === message.msgId) : -1
-      const isExecuting = message.metadata?.isExecuting === true
 
-      const prevTodoIndex = findPrevIndex(m => todoTableIds.has(m.msgId), index - 1)
-      const nextTodoIndex = (() => {
-        for (let i = index + 1; i < messages.length; i++) if (todoTableIds.has(messages[i].msgId)) return i
-        return -1
-      })()
-      const prevUserIndex = findPrevIndex(m => m.role === 'user', index - 1)
-
-      let shouldIndent = false
-      if (!isTodoTable && !isExecuting && message.role !== 'user') {
-        const content = message.content
-        const isTaskSummary = content.includes('## Task Summary:') || content.includes('## Task Summary')
-        const isTaskFailed = content.includes('## Task Failed')
-        const isTaskCompleted = content.includes('## Task Completed') || content.includes('Task Complete') || content.includes('Task Completed') || content.includes('Task completed successfully') || content.includes('Task completed.')
-        const isTopLevelHeading = content.trim().startsWith('## ') || content.includes('\n## ')
-        const isTaskAnalysisOrPlanning = content.includes('Analyzing task complexity') || content.includes('Creating a step-by-step plan') || content.includes('Analyzing task') || content.includes('Creating plan')
-
-        if (!isTaskSummary && !isTaskFailed && !isTaskCompleted && !isTaskAnalysisOrPlanning && !isTopLevelHeading) {
-          // Indent only if there is a Task Manager after the last user message
-          shouldIndent = prevTodoIndex !== -1 && prevTodoIndex > prevUserIndex
-        }
-      }
+      // Simplified: indent all thinking messages except TODO tables
+      const shouldIndent = message.role === 'thinking' && !isTodoTable
 
       messagePositions.set(message.msgId, {
         isTodoTable,
         todoIndex,
         isFirst: isTodoTable && todoIndex === 0,
         isLast: isTodoTable && todoIndex === todoTableMessages.length - 1,
-        hasPreviousTodo: prevTodoIndex !== -1,
-        hasNextTodo: nextTodoIndex !== -1,
-        isBetweenTodos: prevTodoIndex !== -1 && nextTodoIndex !== -1,
         shouldIndent
       })
     })
@@ -388,11 +357,7 @@ export function MessageList({ messages, onScrollStateChange, scrollToBottom: ext
                 className: isNewMessage ? 'animate-fade-in' : '',
                 style: { animationDelay: isNewMessage ? `${animationDelay}s` : undefined },
                 'data-todo-position': position.isFirst ? 'first' : position.isLast ? 'last' : null,
-                'data-todo-index': position.todoIndex,
-                'data-between-todos': position.isBetweenTodos ? 'true' : 'false',
-                'data-has-previous-todo': position.hasPreviousTodo ? 'true' : 'false',
-                'data-has-next-todo': position.hasNextTodo ? 'true' : 'false',
-                'data-should-indent': position.shouldIndent ? 'true' : 'false'
+                'data-todo-index': position.todoIndex
               } as any
 
               if (position.shouldIndent) {

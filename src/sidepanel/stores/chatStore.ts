@@ -9,8 +9,6 @@ export const MessageSchema = z.object({
   timestamp: z.date(),  // When message was created
   metadata: z.object({
     toolName: z.string().optional(),  // Tool name if this is a tool result
-    isExecuting: z.boolean().optional(),  // Flag for executing messages
-    isCompleting: z.boolean().optional(),  // Flag for messages that are finishing execution
   }).optional()  // Minimal metadata
 })
 
@@ -41,7 +39,7 @@ interface ChatActions {
   upsertMessage: (pubsubMessage: PubSubMessage) => void
   clearMessages: () => void
   
-  // Executing message operations
+  // Legacy operations (to be removed)
   markMessageAsExecuting: (msgId: string) => void
   markMessageAsCompleting: (msgId: string) => void
   removeExecutingMessage: (msgId: string) => void
