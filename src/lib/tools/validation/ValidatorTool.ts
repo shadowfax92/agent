@@ -32,7 +32,7 @@ export function createValidatorTool(executionContext: ExecutionContext): Dynamic
     func: async (args: ValidatorInput): Promise<string> => {
       try {
         const messageId = PubSub.generateId('validator_tool')
-        executionContext.getPubSub().publishMessage(PubSub.createMessageWithId(messageId, `📝 Validating task...`, 'assistant'))
+        executionContext.getPubSub().publishMessage(PubSub.createMessageWithId(messageId, `📝 Validating task...`, 'thinking'))
         // Get LLM instance
         const llm = await executionContext.getLLM()
         
@@ -93,7 +93,7 @@ export function createValidatorTool(executionContext: ExecutionContext): Dynamic
         
         // Emit status message
         const status = validation.isComplete ? `✅ Task "${args.task}" is completed` : `📍 Task "${args.task}" is incomplete, will continue execution...`
-        executionContext.getPubSub().publishMessage(PubSub.createMessageWithId(messageId, status, 'assistant'))
+        executionContext.getPubSub().publishMessage(PubSub.createMessageWithId(messageId, status, 'thinking'))
         
         return JSON.stringify({
           ok: true,

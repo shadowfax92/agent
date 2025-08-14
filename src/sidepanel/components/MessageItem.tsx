@@ -328,7 +328,7 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
   const { autoCollapseTools } = useSettingsStore()
   const isUser = message.role === 'user'
   const isError = message.metadata?.error || message.content.includes('## Task Failed')
-  const isSystem = message.role === 'system'
+  const isSystem = false // 'system' role no longer exists in new types
   const { markMessageAsCompleting, removeExecutingMessage, messages, executingMessageRemoving } = useChatStore()
   
   // Prefer metadata flags over content heuristics
@@ -494,7 +494,7 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
     }
 
     // Default to markdown for assistant messages
-    if (message.role === 'assistant') {
+    if (message.role === 'thinking') {
       return 'markdown'
     }
 

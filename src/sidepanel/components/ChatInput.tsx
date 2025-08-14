@@ -105,7 +105,7 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
       const msg = !connectionOk
         ? 'Cannot send message: Extension is disconnected'
         : 'Cannot send message: Provider not configured'
-      addMessage({ role: 'system', content: msg, metadata: { error: true } })
+      addMessage({ role: 'assistant', content: msg, metadata: { error: true } })
       return
     }
     

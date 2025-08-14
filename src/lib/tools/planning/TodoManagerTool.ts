@@ -26,7 +26,7 @@ export function createTodoManagerTool(executionContext: ExecutionContext): Dynam
       
       try {
         const messageId = PubSub.generateId('todo_manager_tool')
-        executionContext.getPubSub().publishMessage(PubSub.createMessageWithId(messageId, `📝 Updating TODO list...`, 'assistant'))
+        executionContext.getPubSub().publishMessage(PubSub.createMessageWithId(messageId, `📝 Updating TODO list...`, 'thinking'))
         
         let resultMessage = 'Success'
         

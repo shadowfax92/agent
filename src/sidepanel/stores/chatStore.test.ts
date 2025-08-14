@@ -27,7 +27,7 @@ describe('chatStore', () => {
     const { addMessage, updateMessage } = useChatStore.getState()
     
     addMessage({
-      role: 'assistant',
+      role: 'thinking',
       content: 'Initial content'
     })
     
@@ -59,7 +59,7 @@ describe('chatStore', () => {
     const { addMessage } = useChatStore.getState()
     
     addMessage({ role: 'user', content: 'First' })
-    addMessage({ role: 'assistant', content: 'Second' })
+    addMessage({ role: 'thinking', content: 'Second' })
     
     const state = useChatStore.getState()
     

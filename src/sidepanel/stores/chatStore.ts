@@ -4,12 +4,13 @@ import { z } from 'zod'
 // Message schema - keep it simple
 export const MessageSchema = z.object({
   id: z.string(),  // Unique message ID
-  role: z.enum(['user', 'assistant', 'system']),  // Message sender role
+  role: z.enum(['user', 'thinking', 'assistant', 'error']),  // Message sender role
   content: z.string(),  // Message content
   timestamp: z.date(),  // When message was created
   metadata: z.object({
     toolName: z.string().optional(),  // Tool name if this is a tool result
     error: z.boolean().optional(),  // Flag for error messages
+    result: z.boolean().optional(), // Flag for result messages
     isExecuting: z.boolean().optional(),  // Flag for executing messages
     isCompleting: z.boolean().optional(),  // Flag for messages that are finishing execution
     isStartup: z.boolean().optional(),  // Flag for initial startup status lines

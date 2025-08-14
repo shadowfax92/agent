@@ -48,7 +48,7 @@ export function Chat({ isConnected }: ChatProps) {
         : `Failed to connect to ${payload.serverId}: ${payload.error || 'Unknown error'}`
       
       addMessage({
-        role: 'system',
+        role: 'assistant',
         content: status
       })
     }

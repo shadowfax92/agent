@@ -13,20 +13,12 @@ export function useMessageHandler() {
     if (payload?.action === 'PUBSUB_EVENT' && payload?.details?.type === 'message') {
       const message = payload.details.payload
       
-      // Handle PubSub message
-      if (message.role === 'system') {
-        addMessage({
-          role: 'system',
-          content: message.content,
-          metadata: { 
-            kind: 'system' as const,
-            timestamp: message.ts
-          }
-        })
-      } else if (message.role === 'assistant') {
+      // Handle PubSub message based on role
+      // Note: 'system' role is no longer in the new types, but keeping for backwards compatibility
+      if (message.role === 'thinking') {
         // Check if we need to update existing assistant message or create new one
         const currentMessages = useChatStore.getState().messages
-        const lastAssistantMsg = [...currentMessages].reverse().find(m => m.role === 'assistant' && m.metadata?.msgId === message.msgId)
+        const lastAssistantMsg = [...currentMessages].reverse().find(m => m.role === 'thinking' && m.metadata?.msgId === message.msgId)
         
         if (lastAssistantMsg) {
           // Update existing message
@@ -34,7 +26,7 @@ export function useMessageHandler() {
         } else {
           // Add new assistant message
           addMessage({
-            role: 'assistant',
+            role: 'thinking',
             content: message.content,
             metadata: { 
               msgId: message.msgId,
@@ -47,6 +39,30 @@ export function useMessageHandler() {
           role: 'user',
           content: message.content,
           metadata: { timestamp: message.ts }
+        })
+      } else if (message.role === 'error') {
+        // For now, map error messages to assistant messages
+        // TODO: Once we have different UI for errors, update this
+        addMessage({
+          role: 'thinking',
+          content: message.content,
+          metadata: { 
+            msgId: message.msgId,
+            timestamp: message.ts,
+            error: true
+          }
+        })
+      } else if (message.role === 'assistant') {
+        // For now, map result messages to assistant messages
+        // TODO: Once we have different UI for results, update this
+        addMessage({
+          role: 'thinking',
+          content: message.content,
+          metadata: { 
+            msgId: message.msgId,
+            timestamp: message.ts,
+            result: true,
+          }
         })
       }
       return
@@ -63,7 +79,7 @@ export function useMessageHandler() {
       if (payload.error && !payload.cancelled) {
         setError(payload.error)
         addMessage({
-          role: 'system',
+          role: 'assistant',
           content: payload.error,
           metadata: { error: true }
         })

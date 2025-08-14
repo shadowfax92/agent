@@ -31,7 +31,7 @@ export function createResultTool(executionContext: ExecutionContext): DynamicStr
       try {
         // Get LLM instance from execution context
         const messageId = PubSub.generateId('result_tool')
-        executionContext.getPubSub().publishMessage(PubSub.createMessageWithId(messageId, `📝 Generating result...`, 'assistant'));
+        executionContext.getPubSub().publishMessage(PubSub.createMessageWithId(messageId, `📝 Generating result...`, 'thinking'));
         const llm = await executionContext.getLLM({temperature: 0.3});
         
         // Get message history - filter to only tool messages
@@ -63,7 +63,7 @@ export function createResultTool(executionContext: ExecutionContext): DynamicStr
           3
         );
         
-        executionContext.getPubSub().publishMessage(PubSub.createMessageWithId(messageId, `📝 Generated result...`, 'assistant'))
+        executionContext.getPubSub().publishMessage(PubSub.createMessageWithId(messageId, `📝 Generated result...`, 'thinking'))
         
         // Format and return result
         return JSON.stringify({
