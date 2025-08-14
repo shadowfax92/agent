@@ -20,7 +20,6 @@ const ChatStateSchema = z.object({
   isProcessing: z.boolean(),  // Is agent currently processing
   selectedTabIds: z.array(z.number()),  // Selected browser tab IDs
   error: z.string().nullable(),  // Current error message if any
-  executingMessageRemoving: z.boolean()  // Flag when executing message is being removed
 })
 
 type ChatState = z.infer<typeof ChatStateSchema>
@@ -38,12 +37,6 @@ interface ChatActions {
   // Message operations - now with upsert
   upsertMessage: (pubsubMessage: PubSubMessage) => void
   clearMessages: () => void
-  
-  // Legacy operations (to be removed)
-  markMessageAsExecuting: (msgId: string) => void
-  markMessageAsCompleting: (msgId: string) => void
-  removeExecutingMessage: (msgId: string) => void
-  setExecutingMessageRemoving: (removing: boolean) => void
   
   // Processing state
   setProcessing: (processing: boolean) => void
@@ -64,8 +57,7 @@ const initialState: ChatState = {
   messages: [],
   isProcessing: false,
   selectedTabIds: [],
-  error: null,
-  executingMessageRemoving: false
+  error: null
 }
 
 // Create the store
@@ -105,45 +97,6 @@ export const useChatStore = create<ChatState & ChatActions>((set) => ({
   },
   
   clearMessages: () => set({ messages: [] }),
-  
-  // Executing message operations (now use msgId)
-  markMessageAsExecuting: (msgId) => {
-    set((state) => ({
-      messages: state.messages.map(msg =>
-        msg.msgId === msgId ? { 
-          ...msg, 
-          metadata: { 
-            ...msg.metadata, 
-            isExecuting: true,
-            isCompleting: false
-          } 
-        } : msg
-      )
-    }))
-  },
-  
-  markMessageAsCompleting: (msgId) => {
-    set((state) => ({
-      messages: state.messages.map(msg =>
-        msg.msgId === msgId ? { 
-          ...msg, 
-          metadata: { 
-            ...msg.metadata, 
-            isExecuting: false,
-            isCompleting: true
-          } 
-        } : msg
-      )
-    }))
-  },
-  
-  removeExecutingMessage: (msgId) => {
-    set((state) => ({
-      messages: state.messages.filter(msg => msg.msgId !== msgId)
-    }))
-  },
-  
-  setExecutingMessageRemoving: (removing) => set({ executingMessageRemoving: removing }),
   
   setProcessing: (processing) => set({ isProcessing: processing }),
   

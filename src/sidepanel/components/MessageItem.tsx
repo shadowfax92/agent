@@ -4,8 +4,6 @@ import { ExpandableSection } from './shared/ExpandableSection'
 import { cn } from '@/sidepanel/lib/utils'
 import type { Message } from '../stores/chatStore'
 import { useChatStore } from '../stores/chatStore'
-//import { UserIcon } from './ui/Icons'
-import { DogHeadSpinner } from './ui/DogHeadSpinner'
 import { ChevronDownIcon, ChevronUpIcon } from './ui/Icons'
 import { TaskManagerDropdown } from './TaskManagerDropdown'
 import { useSettingsStore } from '@/sidepanel/stores/settingsStore'
@@ -326,6 +324,14 @@ const ToolResultInline = ({ name, content, autoCollapseAfterMs }: ToolResultInli
  */
 export const MessageItem = memo<MessageItemProps>(function MessageItem({ message, shouldIndent = false, showLocalIndentLine = false, applyIndentMargin = true }: MessageItemProps) {
   const { autoCollapseTools } = useSettingsStore()
+  const messages = useChatStore(state => state.messages)
+  
+  // Check if this is the latest thinking message (for shimmer effect)
+  const isLatestThinking = useMemo(() => {
+    if (message.role !== 'thinking') return false
+    const lastMessage = messages[messages.length - 1]
+    return lastMessage?.msgId === message.msgId
+  }, [message.role, message.msgId, messages])
   
   // Simple role checks
   const isUser = message.role === 'user'
@@ -405,6 +411,19 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
             />
           )
         }
+        // Regular thinking message - use shimmer if it's the latest
+        if (isLatestThinking && !isTodoTable) {
+          return (
+            <div className="shimmer-container">
+              <MarkdownContent
+                content={message.content}
+                className="break-words"
+                compact={false}
+              />
+              <div className="absolute inset-0 pointer-events-none bg-gradient-to-r from-transparent via-background/30 to-transparent animate-shimmer bg-[length:200%_100%]" />
+            </div>
+          )
+        }
         // Regular thinking message - use markdown
         return (
           <MarkdownContent
@@ -448,7 +467,7 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
           />
         )
     }
-  }, [message.role, message.content, message.msgId, message.metadata?.toolName, isTodoTable, autoCollapseTools, shouldIndent])
+  }, [message.role, message.content, message.msgId, message.metadata?.toolName, isTodoTable, autoCollapseTools, shouldIndent, isLatestThinking])
 
   return (
     <div 
@@ -471,12 +490,6 @@ export const MessageItem = memo<MessageItemProps>(function MessageItem({ message
       {/* Task manager indicators - these will be handled by parent component data attributes */}
       {/* Removed DOM queries for these - they're now handled by parent component */}
 
-      {/* User avatar - disabled
-      {isUser && (
-        <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ml-1 mt-1 bg-gradient-to-br from-brand to-brand/80 text-white shadow-lg">
-          <UserIcon />
-        </div>
-      )} */}
 
       {/* Message content - with or without bubble */}
       {shouldShowBubble ? (
