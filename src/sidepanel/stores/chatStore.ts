@@ -18,7 +18,6 @@ export type Message = z.infer<typeof MessageSchema>
 const ChatStateSchema = z.object({
   messages: z.array(MessageSchema),  // All chat messages
   isProcessing: z.boolean(),  // Is agent currently processing
-  selectedTabIds: z.array(z.number()),  // Selected browser tab IDs
   error: z.string().nullable(),  // Current error message if any
 })
 
@@ -40,10 +39,6 @@ interface ChatActions {
   
   // Processing state
   setProcessing: (processing: boolean) => void
-  
-  // Tab selection
-  setSelectedTabs: (tabIds: number[]) => void
-  clearSelectedTabs: () => void
   
   // Error handling
   setError: (error: string | null) => void
@@ -99,10 +94,6 @@ export const useChatStore = create<ChatState & ChatActions>((set) => ({
   clearMessages: () => set({ messages: [] }),
   
   setProcessing: (processing) => set({ isProcessing: processing }),
-  
-  setSelectedTabs: (tabIds) => set({ selectedTabIds: tabIds }),
-  
-  clearSelectedTabs: () => set({ selectedTabIds: [] }),
   
   setError: (error) => set({ error }),
   
