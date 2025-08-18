@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { ChevronLeft, Play, Save } from 'lucide-react'
 import { useAgentsStore } from '@/newtab/stores/agentsStore'
 import { useProviderStore } from '@/newtab/stores/providerStore'
 import { type Agent } from '@/newtab/schemas/agent.schema'
 import { type Template } from '@/newtab/schemas/template.schema'
-import { AgentEditor } from '@/newtab/components/agents/AgentEditor'
+import { AgentEditor, type AgentEditorHandle } from '@/newtab/components/agents/AgentEditor'
 import { AgentEditorHeader } from '@/newtab/components/agents/AgentEditor/AgentEditorHeader'
 import { AgentList } from '@/newtab/components/agents/AgentList'
 import { TemplateGrid } from '@/newtab/components/agents/Templates/TemplateGrid'
 import { AgentSidebar } from '@/newtab/components/agents/AgentSidebar'
+import { PlanGenerator } from '@/newtab/components/PlanGenerator'
 
 interface CreateAgentPageProps {
   onBack: () => void
@@ -19,6 +20,7 @@ const DEFAULT_TITLE = 'Untitled agent'
 export function CreateAgentPage ({ onBack }: CreateAgentPageProps) {
   const { agents, addAgent, updateAgent, deleteAgent } = useAgentsStore()
   const { executeAgent } = useProviderStore()
+  const editorRef = useRef<AgentEditorHandle | null>(null)
 
   // Editor state
   const [mode, setMode] = useState<'index' | 'editor'>('index')
@@ -187,17 +189,43 @@ export function CreateAgentPage ({ onBack }: CreateAgentPageProps) {
             onDeleteAgent={handleDelete}
             onNewAgent={newAgent}
           />
-          <main className='flex-1 overflow-y-auto'>
-            <AgentEditor
-              agentId={activeAgentId}
-              agent={currentAgent}
-              template={currentTemplate}
-              onSave={handleSave}
-              onRun={handleRun}
-            />
+          <main className='flex-1 min-w-0'>
+            <div className='h-full flex'>
+              <div className='flex-1 overflow-y-auto'>
+                <AgentEditor
+                  ref={editorRef}
+                  agentId={activeAgentId}
+                  agent={currentAgent}
+                  template={currentTemplate}
+                  onSave={handleSave}
+                  onRun={handleRun}
+                />
+              </div>
+              <aside className='w-[420px] max-w-[50vw] border-l border-border bg-background'>
+                <PlanGenerator
+                  getCurrentPlan={() => ({
+                    goal: editorRef.current?.getGoal() || '',
+                    steps: editorRef.current?.getSteps() || []
+                  })}
+                  onReplacePlan={(plan: { goal: string, steps: string[] }) => {
+                    editorRef.current?.setGoal(plan.goal)
+                    editorRef.current?.setSteps(plan.steps)
+                  }}
+                  onAppendSteps={(steps: string[]) => {
+                    const current = editorRef.current?.getSteps() || []
+                    editorRef.current?.setSteps([...current, ...steps])
+                  }}
+                  onReplaceGoal={(goal: string) => {
+                    editorRef.current?.setGoal(goal)
+                  }}
+                />
+              </aside>
+            </div>
           </main>
         </div>
       )}
+      
+      {/* Plan Assistant is pinned in the editor layout above */}
     </div>
   )
 }

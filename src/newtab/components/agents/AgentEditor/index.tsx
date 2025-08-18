@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, forwardRef, useImperativeHandle } from 'react'
 import { z } from 'zod'
 import { AgentEditorForm } from './AgentEditorForm'
 import { type Agent, CreateAgentSchema } from '@/newtab/schemas/agent.schema'
@@ -17,7 +17,17 @@ interface AgentEditorProps {
 
 const DEFAULT_DESCRIPTION = ''
 
-export function AgentEditor ({ agentId, agent, template, onSave, onRun }: AgentEditorProps) {
+export type AgentEditorHandle = {
+  setSteps: (steps: string[]) => void
+  getSteps: () => string[]
+  setGoal: (goal: string) => void
+  getGoal: () => string
+}
+
+export const AgentEditor = forwardRef<AgentEditorHandle, AgentEditorProps>(function AgentEditor (
+  { agentId, agent, template, onSave, onRun }: AgentEditorProps,
+  ref
+) {
   const editor = useAgentEditor()
   const [notification, setNotification] = useState<string>('')
   
@@ -106,6 +116,18 @@ export function AgentEditor ({ agentId, agent, template, onSave, onRun }: AgentE
     onRun: agentId ? onRun : undefined
   })
 
+  // Expose minimal imperative API for external helpers (e.g., PlanGenerator)
+  useImperativeHandle(ref, () => ({
+    setSteps: (steps: string[]) => {
+      editor.setSteps(steps.length > 0 ? steps : [''])
+    },
+    getSteps: () => editor.steps,
+    setGoal: (goal: string) => {
+      editor.setGoal(goal)
+    },
+    getGoal: () => editor.goal
+  }))
+
   return (
     <>
       <button data-save-trigger style={{ display: 'none' }} onClick={handleSave} />
@@ -124,4 +146,4 @@ export function AgentEditor ({ agentId, agent, template, onSave, onRun }: AgentE
       />
     </>
   )
-}
+})
