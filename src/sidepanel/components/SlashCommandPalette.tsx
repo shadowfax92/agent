@@ -26,7 +26,6 @@ export function SlashCommandPalette({ searchQuery, onSelectAgent, onCreateAgent,
     (agent.description || '').toLowerCase().includes(query)
   )
   
-  console.log('SlashCommandPalette - agents:', agents.length, 'filtered:', filteredAgents.length, 'query:', query)
 
   // Total items = filtered agents + optional create option
   const includeCreate = Boolean(onCreateAgent)

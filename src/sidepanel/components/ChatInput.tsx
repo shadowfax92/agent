@@ -45,46 +45,11 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
   
   // Load agents from Chrome storage on mount
   useEffect(() => {
-    // Initialize with default agents first
-    const defaultAgents = [
-      {
-        id: 'summarize-page',
-        name: 'Summarize Page',
-        description: 'Get a concise summary of the current page',
-        goal: 'Summarize the content of this webpage in 3-5 bullet points',
-        steps: [],
-        tools: [],
-        isPinned: true,
-        lastUsed: null,
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      },
-      {
-        id: 'extract-data',
-        name: 'Extract Data',
-        description: 'Extract structured data from the page',
-        goal: 'Extract all relevant data from this page in a structured format',
-        steps: [],
-        tools: [],
-        isPinned: false,
-        lastUsed: null,
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      }
-    ]
-    
-    // Load immediately with defaults
-    loadAgents(defaultAgents)
-    
-    // Then check storage for user agents
     chrome.storage.local.get('agents', (result) => {
-      if (result.agents && Array.isArray(result.agents) && result.agents.length > 0) {
-        console.log('Loading agents from storage:', result.agents.length)
+      if (result.agents && Array.isArray(result.agents)) {
         loadAgents(result.agents)
       } else {
-        console.log('No agents in storage, using defaults')
-        // Save default agents to storage
-        chrome.storage.local.set({ agents: defaultAgents })
+        loadAgents([])
       }
     })
   }, [])  // Remove loadAgents dependency to avoid re-runs
@@ -226,7 +191,6 @@ export function ChatInput({ isConnected, isProcessing }: ChatInputProps) {
     // Toggle slash palette when user types '/'
     if (newValue === '/' || (newValue.startsWith('/') && newValue.length > 0)) {
       if (!showSlashPalette) {
-        console.log('Opening slash palette, agents:', agents.length)
         setShowSlashPalette(true)
       }
     } else if (showSlashPalette) {
