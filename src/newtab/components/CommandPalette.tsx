@@ -117,7 +117,7 @@ export function CommandPalette({ searchQuery, onSelectAgent, onCreateAgent, onCl
             <Bot className="w-4 h-4 text-muted-foreground" />
             <div className="flex-1 min-w-0">
               <div className="font-medium text-sm truncate">
-                /{agent.name}
+                / {agent.name}
               </div>
               {agent.description && (
                 <div className="text-xs text-muted-foreground truncate">
@@ -157,7 +157,7 @@ export function CommandPalette({ searchQuery, onSelectAgent, onCreateAgent, onCl
           <Plus className="w-4 h-4 text-muted-foreground" />
           <div className="flex-1">
             <div className="font-medium text-sm">
-              Create new agent
+              Create/Edit agent
             </div>
             <div className="text-xs text-muted-foreground">
               Define a new agent with custom goals and tools
