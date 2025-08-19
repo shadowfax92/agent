@@ -29,6 +29,7 @@ export function CreateAgentPage ({ onBack }: CreateAgentPageProps) {
   const [currentTemplate, setCurrentTemplate] = useState<Template | null>(null)
   const [headerNotification, setHeaderNotification] = useState<string>('')
   const [waitingForNewAgent, setWaitingForNewAgent] = useState<string | null>(null)
+  const [planVersion, setPlanVersion] = useState<number>(0)
 
   // Computed display title
   const displayTitle: string = currentAgent?.name || DEFAULT_TITLE
@@ -63,6 +64,7 @@ export function CreateAgentPage ({ onBack }: CreateAgentPageProps) {
     localStorage.removeItem('agent-draft')
     setMode('editor')
     setHeaderNotification('Save to enable Run')
+    setPlanVersion(v => v + 1)
   }
 
   // Use template
@@ -192,17 +194,19 @@ export function CreateAgentPage ({ onBack }: CreateAgentPageProps) {
           <main className='flex-1 min-w-0'>
             <div className='h-full flex'>
               <div className='flex-1 overflow-y-auto'>
-                <AgentEditor
-                  ref={editorRef}
-                  agentId={activeAgentId}
-                  agent={currentAgent}
-                  template={currentTemplate}
-                  onSave={handleSave}
-                  onRun={handleRun}
-                />
+              <AgentEditor
+                ref={editorRef}
+                agentId={activeAgentId}
+                agent={currentAgent}
+                template={currentTemplate}
+                onSave={handleSave}
+                onRun={handleRun}
+                onPlanChange={() => setPlanVersion(v => v + 1)}
+              />
               </div>
               <aside className='w-[420px] max-w-[50vw] border-l border-border bg-background'>
                 <PlanGenerator
+                  refreshKey={planVersion}
                   getCurrentPlan={() => ({
                     goal: editorRef.current?.getGoal() || '',
                     steps: editorRef.current?.getSteps() || []
@@ -210,13 +214,12 @@ export function CreateAgentPage ({ onBack }: CreateAgentPageProps) {
                   onReplacePlan={(plan: { goal: string, steps: string[] }) => {
                     editorRef.current?.setGoal(plan.goal)
                     editorRef.current?.setSteps(plan.steps)
+                    editorRef.current?.save()
                   }}
                   onAppendSteps={(steps: string[]) => {
                     const current = editorRef.current?.getSteps() || []
                     editorRef.current?.setSteps([...current, ...steps])
-                  }}
-                  onReplaceGoal={(goal: string) => {
-                    editorRef.current?.setGoal(goal)
+                    editorRef.current?.save()
                   }}
                 />
               </aside>

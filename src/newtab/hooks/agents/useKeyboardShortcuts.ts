@@ -7,7 +7,7 @@ interface UseKeyboardShortcutsOptions {
 }
 
 export function useKeyboardShortcuts (options: UseKeyboardShortcutsOptions): void {
-  const { onSave, onRun, enabled = true } = options
+  const { onSave, /* onRun, */ enabled = true } = options
 
   useEffect(() => {
     if (!enabled) return
@@ -21,14 +21,10 @@ export function useKeyboardShortcuts (options: UseKeyboardShortcutsOptions): voi
         onSave()
       }
       
-      // Cmd/Ctrl + Enter to run
-      if (isCmd && e.key === 'Enter' && onRun) {
-        e.preventDefault()
-        onRun()
-      }
+      // Run shortcut removed intentionally
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onSave, onRun, enabled])
+  }, [onSave, enabled])
 }

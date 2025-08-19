@@ -13,6 +13,7 @@ interface AgentEditorProps {
   template?: Template | null
   onSave: (data: any) => void
   onRun: () => Promise<void>
+  onPlanChange?: (plan: { goal: string, steps: string[] }) => void
 }
 
 const DEFAULT_DESCRIPTION = ''
@@ -22,10 +23,11 @@ export type AgentEditorHandle = {
   getSteps: () => string[]
   setGoal: (goal: string) => void
   getGoal: () => string
+  save: () => void
 }
 
 export const AgentEditor = forwardRef<AgentEditorHandle, AgentEditorProps>(function AgentEditor (
-  { agentId, agent, template, onSave, onRun }: AgentEditorProps,
+  { agentId, agent, template, onSave, onRun, onPlanChange }: AgentEditorProps,
   ref
 ) {
   const editor = useAgentEditor()
@@ -40,6 +42,8 @@ export const AgentEditor = forwardRef<AgentEditorHandle, AgentEditorProps>(funct
       editor.loadTemplate(template)
       setNotification('Save to enable Run')
     } else if (!agentId) {
+      // New agent: ensure a truly fresh form
+      editor.resetForm()
       setNotification('Save to enable Run')
     }
   }, [agent, template, agentId])
@@ -113,8 +117,16 @@ export const AgentEditor = forwardRef<AgentEditorHandle, AgentEditorProps>(funct
   // Keyboard shortcuts
   useKeyboardShortcuts({
     onSave: handleSave,
-    onRun: agentId ? onRun : undefined
+    // Run shortcut removed per requirements
+    onRun: undefined
   })
+
+  // Notify parent when plan (goal/steps) changes so PlanGenerator can refresh
+  useEffect(() => {
+    if (onPlanChange) {
+      onPlanChange({ goal: editor.goal, steps: editor.steps })
+    }
+  }, [editor.goal, editor.steps])
 
   // Expose minimal imperative API for external helpers (e.g., PlanGenerator)
   useImperativeHandle(ref, () => ({
@@ -125,7 +137,8 @@ export const AgentEditor = forwardRef<AgentEditorHandle, AgentEditorProps>(funct
     setGoal: (goal: string) => {
       editor.setGoal(goal)
     },
-    getGoal: () => editor.goal
+    getGoal: () => editor.goal,
+    save: () => handleSave()
   }))
 
   return (

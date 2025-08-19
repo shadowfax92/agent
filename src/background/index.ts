@@ -10,6 +10,7 @@ import { GlowAnimationService } from '@/lib/services/GlowAnimationService'
 import { KlavisAPIManager } from '@/lib/mcp/KlavisAPIManager'
 import { MCP_SERVERS } from '@/config/mcpServers'
 import { PubSub, PubSubEvent } from '@/lib/pubsub'
+import { PlanGeneratorService } from '@/lib/services/PlanGeneratorService'
 
 /**
  * Background script for the ParallelManus extension
@@ -370,6 +371,15 @@ function handlePortMessage(message: PortMessage, port: chrome.runtime.Port): voi
       
       case MessageType.MCP_INSTALL_SERVER:
         handleMCPInstallServerPort(payload as { serverId: string }, port, id)
+        break
+
+      // Plan generation and refinement from New Tab
+      case MessageType.GENERATE_PLAN:
+        handleGeneratePlanPort(payload as { input: string; context?: string; maxSteps?: number }, port, id)
+        break
+
+      case MessageType.REFINE_PLAN:
+        handleRefinePlanPort(payload as { currentPlan: { goal?: string; steps: string[] }; feedback: string; maxSteps?: number }, port, id)
         break
         
       default:
@@ -877,5 +887,90 @@ function stopProvidersPolling(): void {
   if (providersPollIntervalId !== null) {
     clearInterval(providersPollIntervalId as unknown as number)
     providersPollIntervalId = null
+  }
+}
+
+/**
+ * Helper to post plan generation updates back to the sender
+ */
+function postPlanUpdate(
+  port: chrome.runtime.Port,
+  id: string | undefined,
+  update: {
+    status: 'queued' | 'started' | 'thinking' | 'done' | 'error';
+    content?: string;
+    structured?: { steps: Array<{ action: string; reasoning: string }> };
+    error?: string;
+  }
+): void {
+  port.postMessage({
+    type: MessageType.PLAN_GENERATION_UPDATE,
+    payload: {
+      status: update.status,
+      content: update.content,
+      structured: update.structured,
+      plan: update.structured ? { steps: update.structured.steps.map(s => s.action) } : undefined,
+      error: update.error
+    },
+    id
+  })
+
+  // Also mirror updates to side panel via PubSub so users see progress
+  try {
+    const text = update.content || (update.status === 'done' && update.structured ? `Generated plan with ${update.structured.steps.length} steps` : `Status: ${update.status}`)
+    if (update.status === 'error') {
+      pubsub.publishMessage(PubSub.createMessage(update.error ? `Plan error: ${update.error}` : 'Plan generation failed', 'error'))
+    } else if (update.status === 'done') {
+      pubsub.publishMessage(PubSub.createMessage(text, 'thinking'))
+    } else {
+      pubsub.publishMessage(PubSub.createMessage(text, 'thinking'))
+    }
+  } catch (_e) {
+    // Best-effort only
+  }
+}
+
+/**
+ * Handle GENERATE_PLAN from new tab
+ */
+async function handleGeneratePlanPort(
+  payload: { input: string; context?: string; maxSteps?: number },
+  port: chrome.runtime.Port,
+  id?: string
+): Promise<void> {
+  try {
+    const service = new PlanGeneratorService()
+    postPlanUpdate(port, id, { status: 'started', content: 'Starting plan generation…' })
+    const plan = await service.generatePlan(payload.input, {
+      context: payload.context,
+      maxSteps: payload.maxSteps,
+      onUpdate: (u) => postPlanUpdate(port, id, u)
+    })
+    postPlanUpdate(port, id, { status: 'done', content: 'Plan generated', structured: plan })
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    postPlanUpdate(port, id, { status: 'error', content: 'Plan generation failed', error: msg })
+  }
+}
+
+/**
+ * Handle REFINE_PLAN from new tab
+ */
+async function handleRefinePlanPort(
+  payload: { currentPlan: { goal?: string; steps: string[] }; feedback: string; maxSteps?: number },
+  port: chrome.runtime.Port,
+  id?: string
+): Promise<void> {
+  try {
+    const service = new PlanGeneratorService()
+    postPlanUpdate(port, id, { status: 'started', content: 'Starting plan refinement…' })
+    const plan = await service.refinePlan({ goal: payload.currentPlan.goal, steps: payload.currentPlan.steps || [] }, payload.feedback, {
+      maxSteps: payload.maxSteps,
+      onUpdate: (u) => postPlanUpdate(port, id, u)
+    })
+    postPlanUpdate(port, id, { status: 'done', content: 'Plan refined', structured: plan })
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    postPlanUpdate(port, id, { status: 'error', content: 'Plan refinement failed', error: msg })
   }
 }
