@@ -204,9 +204,8 @@ export class BrowserAgent {
         const initialPlan: Plan = {
           steps: predefined.steps.map(step => ({ action: step, reasoning: `Part of agent: ${predefined.name || 'Custom'}` }))
         };
-        // Add goal context to message history for better reasoning consistency
         if (predefined.goal) {
-          this.messageManager.addAI(`Use the following predefined plan to accomplish the goal: ${predefined.goal}`);
+          this.messageManager.addHuman(`User's goal is: ${predefined.goal} and this is the task: ${task}`);
         }
         await this._executeMultiStepStrategy(task, initialPlan);
         await this._generateTaskResult(task);
@@ -417,9 +416,15 @@ export class BrowserAgent {
       this.checkIfAborted();
 
       // 1. PLAN: Use provided initial plan for first cycle, otherwise create a new plan
-      const plan = (outer_loop_index === 0 && initialPlan) 
-        ? initialPlan 
-        : await this._createMultiStepPlan(task);
+      let plan: Plan;
+      if (outer_loop_index === 0 && initialPlan) {
+        // Use the provided initial plan without creating a new one
+        plan = initialPlan;
+        this.pubsub.publishMessage(PubSub.createMessage(`Using predefined plan with ${initialPlan.steps.length} steps`, 'thinking'));
+      } else {
+        // Create a new plan for subsequent iterations or when no initial plan
+        plan = await this._createMultiStepPlan(task);
+      }
 
       // 2. Convert plan to TODOs
       await this._updateTodosFromPlan(plan);
